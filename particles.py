@@ -1,9 +1,6 @@
 import pygame
 import math
-from calcs import distance
-from calcs import normalize_angle
-from calcs import brightness
-from calcs import linear_gradient
+from calcs import distance, normalize_angle, brightness, linear_gradient, clip
 import random
 import copy
 
@@ -438,3 +435,31 @@ class Spark:
             self.angle += self.rotation * t
         if math.pi / 2 > self.angle > 0:
             self.angle += self.rotation * t
+
+
+class Bush:
+    def __init__(self, pos, numLeaves, size, cols, colWeight):
+        self.pos = pos
+        self.numLeaves = numLeaves
+        self.size = size
+        self.cols = cols
+        self.colWeight = colWeight
+        self.leaves = [Leaf(self.pos, self.size, self.cols, clip(0, 1, colWeight + random.uniform(-1 / len(self.cols.keys()), 1 / len(self.cols.keys()))), math.pi * 2 / i) for i in range(self.numLeaves)]
+
+    def draw(self, s):
+        for leaf in self.leaves:
+            leaf.draw(s)
+
+
+class Leaf:
+    def __init__(self, pos, size, cols, colWeight, a):
+        self.pos = pos
+        self.size = size
+        self.cols = cols
+        self.colWeight = colWeight
+        self.a = a
+
+    def draw(self, s):
+        shape = [1, 0.7, 0.4, 0]
+        pygame.draw.polygon(s, self.cols[str(int(self.colWeight * len(self.cols.keys())))], [(self.pos[0] + self.size * math.cos(self.a + math.pi * i / (2 * len(shape) - 2)) * shape[i if (i < len(shape)) else -(i - len(shape) + 2)],
+                                                                                              self.pos[0] + self.size * math.sin(self.a + math.pi * i / (2 * len(shape) - 2)) * shape[i if (i < len(shape)) else -(i - len(shape) + 2)]) for i in range(len(shape))])

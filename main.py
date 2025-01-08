@@ -3,6 +3,7 @@ import math
 import time
 from text import drawText
 from fontDict import fonts
+from particles import Bush
 
 pygame.init()
 
@@ -59,6 +60,15 @@ oscillating_random_thing = 0
 ShakeCounter = 0
 toggle = True
 click = False
+
+
+leafCols = {
+    "1": (255, 255, 255),
+    "2": (200, 200, 200),
+}
+
+
+b = Bush(screen_center, 3, 10, leafCols, 0)
 
 # ---------------- Main Game Loop
 last_time = time.time()
