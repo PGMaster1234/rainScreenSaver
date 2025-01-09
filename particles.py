@@ -1,6 +1,6 @@
 import pygame
 import math
-from calcs import distance, normalize_angle, brightness, linear_gradient, clip
+from calcs import distance, normalize_angle, brightness, linear_gradient, clip, draw_arrow
 import random
 import copy
 
@@ -437,14 +437,77 @@ class Spark:
             self.angle += self.rotation * t
 
 
+class Tree:
+    def __init__(self, basePos, height, treeType, cols, sproutCountPerBush=15, bushLeavesCount=2, leafSize=7, shadowAmountTwo2Five=4):
+        self.basePos = basePos
+        self.height = height
+        self.treeType = treeType
+        self.cols = cols
+        self.sproutCountPerBush = sproutCountPerBush
+        self.bushLeavesCount = bushLeavesCount
+        self.leafSize = leafSize
+        if self.treeType == "standard" or self.treeType == "s":
+            layers = 4
+            rads = [height / 2.5, height / 2.5, height / 2.5, height / 4]
+            numSproutsScalars = [1, 1, 0.9, 0.7]
+            # shadowAmountTwo2Five - a higher number (e.g. 5) means more shadow, lower is less
+            layerWidths = [random.uniform(0.36, 0.42), random.uniform(0.32, 0.36), random.uniform(0.26, 0.3), random.uniform(0.12, 0.2)]
+            self.bushes = [Bush((basePos[0] + layerWidths[i] * random.uniform(0.8, 1.3) * self.height, basePos[1] - i * height / layers), rads[i], int(sproutCountPerBush * numSproutsScalars[i]), cols, i / shadowAmountTwo2Five, bushLeavesCount=bushLeavesCount, leafSize=leafSize) for i in range(layers)] + \
+                          [Bush((basePos[0] - layerWidths[i] * random.uniform(0.8, 1.3) * self.height, basePos[1] - i * height / layers), rads[i], int(sproutCountPerBush * numSproutsScalars[i]), cols, i / shadowAmountTwo2Five, bushLeavesCount=bushLeavesCount, leafSize=leafSize) for i in range(layers)] + \
+                          [Bush((basePos[0], basePos[1]), rads[0], int(sproutCountPerBush * numSproutsScalars[0]), cols, 0, bushLeavesCount=bushLeavesCount, leafSize=leafSize)]
+        else:
+            raise NotImplementedError
+
+    def update(self, dt, gustStrength=0.05):
+        for bush in self.bushes:
+            bush.update(dt, gustStrength)
+
+    def draw(self, s, showSprouts=True, showBoundingCircles=False):
+        for bush in self.bushes:
+            bush.draw(s, showSprouts, showBoundingCircles)
+
+
 class Bush:
-    def __init__(self, pos, numLeaves, size, cols, colWeight):
+    def __init__(self, pos, rad, count, cols, colWeight=0.5, bushLeavesCount=2, leafSize=10):
+        self.pos = pos
+        self.rad = rad
+        self.count = count
+        self.cols = cols
+        self.bushLeavesCount = bushLeavesCount
+        self.leafSize = leafSize
+        angs = [i / count * (math.pi * 17.15) for i in range(count)]
+        spacers = [(i / count) ** 0.3 for i in range(count)]
+        self.sprouts = [Sprout((pos[0] + self.rad * math.cos(angs[i]) * spacers[i],
+                                pos[1] + self.rad * math.sin(angs[i]) * spacers[i]), self.bushLeavesCount, self.leafSize, self.cols, colWeight + (1 / len(self.cols)) * (-1 if ((0 <= normalize_angle(angs[i]) < 2 * math.pi / 3) or (math.pi * 5 / 3 < normalize_angle(angs[i]) < math.pi * 2)) else 1)) for i in range(self.count)]
+
+    def update(self, dt, gustStrength=0.05):
+        for sprout in self.sprouts:
+            sprout.update(dt, gustStrength)
+
+    def draw(self, s, showSprouts=True, showBoundingCircle=False):
+        if showBoundingCircle:
+            pygame.draw.circle(s, (255, 96, 141),  self.pos, self.rad, 1)
+        if showSprouts:
+            for sprout in self.sprouts:
+                sprout.draw(s)
+
+
+class Sprout:
+    def __init__(self, pos, numLeaves, leafSize, cols, colWeight):
         self.pos = pos
         self.numLeaves = numLeaves
-        self.size = size
+        self.leafSize = leafSize
         self.cols = cols
         self.colWeight = colWeight
-        self.leaves = [Leaf(self.pos, self.size, self.cols, clip(0, 1, colWeight + random.uniform(-1 / len(self.cols.keys()), 1 / len(self.cols.keys()))), math.pi * 2 / i) for i in range(self.numLeaves)]
+        self.leaves = [Leaf(self.pos, self.leafSize, self.cols, colWeight, math.pi * 2 * (i / self.numLeaves + random.uniform(-0.5 / self.numLeaves, 0.5 / self.numLeaves))) for i in range(self.numLeaves)]
+        random.shuffle(self.leaves)
+
+    def update(self, dt, gustStrength=0.05):
+        for leaf in self.leaves:
+            if 0 <= normalize_angle(leaf.a) < math.pi:
+                leaf.a = math.pi * 1.5
+            else:
+                leaf.a += random.uniform(-gustStrength, gustStrength) * dt
 
     def draw(self, s):
         for leaf in self.leaves:
@@ -452,14 +515,20 @@ class Bush:
 
 
 class Leaf:
-    def __init__(self, pos, size, cols, colWeight, a):
+    def __init__(self, pos, size, cols, colWeight=0.5, a=0):
         self.pos = pos
-        self.size = size
+        self.size = int(size * random.uniform(0.8, 1.25))
         self.cols = cols
-        self.colWeight = colWeight
+        self.colWeight = clip(0, 1-1e-9, colWeight + random.uniform(-1.5 / len(self.cols), 2.5 / len(self.cols)))
         self.a = a
+        self.spacing = self.size * random.uniform(0., 0.4)
 
-    def draw(self, s):
-        shape = [1, 0.7, 0.4, 0]
-        pygame.draw.polygon(s, self.cols[str(int(self.colWeight * len(self.cols.keys())))], [(self.pos[0] + self.size * math.cos(self.a + math.pi * i / (2 * len(shape) - 2)) * shape[i if (i < len(shape)) else -(i - len(shape) + 2)],
-                                                                                              self.pos[0] + self.size * math.sin(self.a + math.pi * i / (2 * len(shape) - 2)) * shape[i if (i < len(shape)) else -(i - len(shape) + 2)]) for i in range(len(shape))])
+        # UI arrow randomizer
+        self.r = random.randint(0, 15) < 1
+
+    def draw(self, s, showArrows=False):
+        shape = [1, 0.5, 0.3, 0.2, 0.1, 0, 0.1, 0.2, 0.3, 0.5]
+        pygame.draw.polygon(s, linear_gradient(self.cols, self.colWeight), [(self.pos[0] + self.size * math.cos(self.a + i / len(shape) * (2 * math.pi)) * shape[i] + math.cos(self.a) * self.spacing,
+                                                                             self.pos[1] + self.size * math.sin(self.a + i / len(shape) * (2 * math.pi)) * shape[i] + math.sin(self.a) * self.spacing) for i in range(len(shape))])
+        if self.r and showArrows:
+            draw_arrow(s, self.pos, (self.pos[0] + math.cos(self.a) * 25, self.pos[1] + math.sin(self.a) * 25), (255, 96, 141), pygame, 1, 5)

@@ -1,14 +1,15 @@
 import pygame
 import math
 import time
+import random
 from text import drawText
 from fontDict import fonts
-from particles import Bush
+from particles import Tree
 
 pygame.init()
 
 # ---------------- Setting up the screen, assigning some global variables, and loading text fonts
-screen = pygame.display.set_mode((1600, 900), pygame.FULLSCREEN)
+screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 fps = 60
 scaleDownFactor = 5
@@ -62,13 +63,18 @@ toggle = True
 click = False
 
 
-leafCols = {
-    "1": (255, 255, 255),
-    "2": (200, 200, 200),
-}
+leafCols = [(40, 77, 103), (59, 96, 98), (77, 110, 100), (93, 125, 104)]
 
 
-b = Bush(screen_center, 3, 10, leafCols, 0)
+def spawn():
+    return [Tree([(_ + 0.5) * screen_width / 3, screen_height / 2 - 35], 40, "s", leafCols, leafSize=8, sproutCountPerBush=50) for _ in range(3)] + \
+            [Tree([(_ + 0.5) * screen_width / 4, screen_height / 2 + 30], 30, "s", leafCols, leafSize=7, sproutCountPerBush=40) for _ in range(4)] + \
+            [Tree([(_ + 1) * screen_width / 6, screen_height / 2 + 75], 20, "s", leafCols, leafSize=6, sproutCountPerBush=15) for _ in range(5)]
+
+
+trees = spawn()
+gustStrength = 0.01
+bushToggle = True
 
 # ---------------- Main Game Loop
 last_time = time.time()
@@ -78,8 +84,8 @@ while running:
     # ---------------- Reset Variables and Clear screens
     mx, my = pygame.mouse.get_pos()
     mx, my = mx / scaleDownFactor, my / scaleDownFactor
-    screen.fill(Endesga.my_blue)
-    screen2.fill(Endesga.my_blue)
+    screen.fill(Endesga.black)
+    screen2.fill(Endesga.black)
     screenT.fill((0, 0, 0, 0))
     screenUI.fill((0, 0, 0, 0))
     dt = time.time() - last_time
@@ -101,12 +107,24 @@ while running:
                 running = False
             if event.key == pygame.K_SPACE:
                 toggle = not toggle
+            if event.key == pygame.K_w:
+                gustStrength = 0.1
+            if event.key == pygame.K_s:
+                trees = spawn()
+            if event.key == pygame.K_t:
+                bushToggle = not bushToggle
         if event.type == pygame.KEYUP:
-            pass
+            if event.key == pygame.K_w:
+                gustStrength = 0.01
+
+    for tree in trees:
+        tree.update(dt, gustStrength)
+        tree.draw(screen2, bushToggle, not bushToggle)
 
     # ---------------- Updating Screen
     if toggle:
-        items = {round(clock.get_fps()): None,
+        items = {"KYBD : w, s, t": None,
+                 round(clock.get_fps()): None,
                  }
         for i, label in enumerate(items.keys()):
             string = str(label)
